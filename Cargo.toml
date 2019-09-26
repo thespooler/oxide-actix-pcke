@@ -10,5 +10,8 @@ edition = "2018"
 actix = "0.8"
 actix-web = "1.0"
 
+futures = "0.1"
+log = "0.4"
+
 oxide-auth = { version = "0.5.0-preview", path = "./../oxide-auth/oxide-auth" }
 oxide-auth-actix = { version = "0.1", path = "./../oxide-auth/oxide-auth-actix" }
