@@ -5,7 +5,7 @@ use oxide_auth::{
     endpoint::{Endpoint,OwnerConsent,OwnerSolicitor},
     frontends::simple::endpoint::{Error,ErrorInto,FnSolicitor,Generic,Vacant},
     frontends::simple::extensions::{AddonList,Extended},
-    primitives::prelude::{AuthMap, Client, ClientMap, PreGrant, RandomGenerator, TokenMap},
+    primitives::prelude::{AuthMap, Client, ClientMap, PreGrant, RandomGenerator, Scope, TokenMap},
 };
 
 pub(crate) enum Extras {
@@ -18,9 +18,7 @@ pub struct PkceSetup {
     registrar: ClientMap,
     authorizer: AuthMap<RandomGenerator>,
     issuer: TokenMap<RandomGenerator>,
-    auth_token: String,
-    verifier: String,
-    sha256_challenge: String,
+    scopes: Vec<Scope>
 }
 
 impl Actor for PkceSetup {
@@ -29,14 +27,14 @@ impl Actor for PkceSetup {
 
 impl PkceSetup {
     pub fn new() -> PkceSetup {
-        let client = Client::public("EXAMPLE_CLIENT_ID",
-            "EXAMPLE_REDIRECT_URI".parse().unwrap(),
-            "EXAMPLE_SCOPE".parse().unwrap());
+        let scope: Scope = "default-scope".parse().unwrap();
+        let client = Client::public("LocalClient",
+            "http://localhost:8081/oauth/endpoint".parse().unwrap(),
+            scope.clone());
 
         let mut registrar = ClientMap::new();
         registrar.register_client(client);
 
-        let token = "ExampleAuthorizationToken".to_string();
         let authorizer = AuthMap::new(RandomGenerator::new(16));
         let issuer = TokenMap::new(RandomGenerator::new(16));
 
@@ -44,14 +42,13 @@ impl PkceSetup {
             registrar: registrar,
             authorizer: authorizer,
             issuer: issuer,
-            auth_token: token,
-            // The following are from https://tools.ietf.org/html/rfc7636#page-18
-            sha256_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM".to_string(),
-            verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk".to_string(),
+            scopes: vec![scope]
         }
     }
     
-    pub fn allowing_endpoint(&mut self) -> impl Endpoint<OAuthRequest, Error=Error<OAuthRequest>> + '_ {
+    pub fn allowing_endpoint<'a, S>(&'a mut self, solicitor: S) -> impl Endpoint<OAuthRequest, Error = Error<OAuthRequest>> + 'a
+    where S: OwnerSolicitor<OAuthRequest> + 'static
+    {
         let pkce_extension = Pkce::required();
 
         let mut extensions = AddonList::new();
@@ -61,11 +58,10 @@ impl PkceSetup {
             registrar: &self.registrar,
             authorizer: &mut self.authorizer,
             issuer: &mut self.issuer,
-            scopes: Vacant,
-            solicitor: Allow("EXAMPLE_OWNER_ID".to_string()),
+            scopes: &mut self.scopes,
+            solicitor: solicitor,
             response: Vacant,
         };
-
         Extended::extend_with(endpoint, extensions)
     }
 
@@ -76,14 +72,7 @@ impl PkceSetup {
     where
         S: OwnerSolicitor<OAuthRequest> + 'static,
     {
-        ErrorInto::new(Generic {
-            authorizer: &mut self.authorizer,
-            registrar: &self.registrar,
-            issuer: &mut self.issuer,
-            solicitor,
-            scopes: Vacant,
-            response: OAuthResponse::ok,
-        })
+        ErrorInto::new(self.allowing_endpoint(solicitor))
     }
 }
 
@@ -98,7 +87,7 @@ where
 
         match ex {
             Extras::AuthGet => {
-                let solicitor = FnSolicitor(move |req: &mut OAuthRequest, pre_grant: &PreGrant| {
+                let solicitor = FnSolicitor(move |_: &mut OAuthRequest, pre_grant: &PreGrant| {
                     // This will display a page to the user asking for his permission to proceed. The submitted form
                     // will then trigger the other authorization handler which actually completes the flow.
                     OwnerConsent::InProgress(
@@ -121,14 +110,7 @@ where
 
                 op.run(self.with_solicitor(solicitor))
             }
-            _ => op.run(Generic {
-                authorizer: &mut self.authorizer,
-                registrar: &self.registrar,
-                issuer: &mut self.issuer,
-                solicitor: Vacant,
-                scopes: Vacant,
-                response: OAuthResponse::ok,
-            }),
+            _ => op.run(self.allowing_endpoint(Allow("LocalClient".to_string()))),
         }
     }
 }

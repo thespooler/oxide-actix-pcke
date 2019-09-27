@@ -10,7 +10,7 @@ use pkcetest::{PkceSetup,Extras};
 static DENY_TEXT: &str = "<html>
 <h1>NO!!!</h1>
 This page should be accessed via an oauth token from the client in the example. Click
-<a href=\"http://localhost:8653/oauth/authorize?response_type=code&client_id=LocalClient\">
+<a href=\"http://localhost:8081/oauth/authorize?response_type=code&client_id=LocalClient\">
 here</a> to begin the authorization process.
 </html>";
 
@@ -24,13 +24,11 @@ fn main() {
 
     let sys = actix::System::new("HttpServerClient");
 
-    let mut pkce_setup = PkceSetup::new();
-    let endpoint = pkce_setup.allowing_endpoint();
-    let pkce_agent = pkce_setup.start();
+    let pkce_agent = PkceSetup::new().start();
 
     HttpServer::new(move || {
         App::new()
-            .data(pkce_agent)
+            .data(pkce_agent.clone())
             .service(web::scope("/oauth/")
                 .service(
                     web::resource("/authorize")
@@ -85,6 +83,7 @@ fn main() {
                     })
                 )
             )
+            .service(actix_files::Files::new("/", "../../actix-shopper/web/dist").index_file("index.html"))
     })
     .bind("0.0.0.0:8081")
     .expect("Failed to bind to socket")
