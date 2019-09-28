@@ -1,8 +1,13 @@
 <html>
     <head>
+        <style>
+            body {
+                font-family: Verdana, Geneva, sans-serif;
+            }
+        </style>
     </head>
     <body>
-        <h1 id="status">No Code yet</h1>
+        <section id="status">No Code yet</section>
         <script>
             const oauthConfig = {
                 authorization_endpoint: 'http://localhost:8081/oauth/authorize',
@@ -69,13 +74,16 @@
                 const q = parseQueryString(window.location.search.substring(1));
 
                 if (q.error) {
+                    q.error = decodeURIComponent(q.error);
                     document.getElementById("status").innerHTML = `Got error ${q.error}`;
                 }
 
                 if (q.code) {
+                    q.code = decodeURIComponent(q.code);
 
                     if (localStorage.getItem("pkce_state") != q.state) {
-                        document.getElementById("status").innerHTML = `Got code ${q.code}, but pkce_state is not what was expected`;
+                        document.getElementById("status").innerHTML = `Got code ${q.code}, but (pkce_)state is not what was expected. Expected ${localStorage.getItem("pkce_state")}, got ${q.state}`;
+                        debugger
                     } else {
                         localStorage.removeItem("pkce_state");
                         localStorage.removeItem("pkce_code_verifier");
@@ -113,6 +121,7 @@
                     });
             } else {
                 document.getElementById("status").innerHTML = `No code yet, redirecting for auth`;
+                debugger
                 getAuthUrl(oauthConfig).then(u => window.location.href = u);
             }
         </script>

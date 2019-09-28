@@ -29,7 +29,7 @@ impl PkceSetup {
     pub fn new() -> PkceSetup {
         let scope: Scope = "default-scope".parse().unwrap();
         let client = Client::public("LocalClient",
-            "http://localhost:8080/".parse().unwrap(),
+            "http://localhost:8081/".parse().unwrap(),
             scope.clone());
 
         let mut registrar = ClientMap::new();
