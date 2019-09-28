@@ -83,7 +83,6 @@
 
                     if (localStorage.getItem("pkce_state") != q.state) {
                         document.getElementById("status").innerHTML = `Got code ${q.code}, but (pkce_)state is not what was expected. Expected ${localStorage.getItem("pkce_state")}, got ${q.state}`;
-                        debugger
                     } else {
                         localStorage.removeItem("pkce_state");
                         document.getElementById("status").innerHTML = `Got code ${q.code} and pkce matches`;
@@ -115,14 +114,19 @@
                 })
                     .then(r => r.json())
                     .then((t) => {
-                        debugger
-                        // Got valid access token
-                        document.getElementById("status").innerHTML = `Got access token ${t.access_token}`;
-                        localStorage.removeItem("pkce_code_verifier");
+                        if (t.error)
+                        {
+                            document.getElementById("status").innerHTML = `Got error ${t.error}`;
+                        }
+                        if (t.access_token)
+                        {         
+                            // Got valid access token
+                            document.getElementById("status").innerHTML = `Got access token ${t.access_token}`;
+                            localStorage.removeItem("pkce_code_verifier");
+                        }
                     });
             } else {
                 document.getElementById("status").innerHTML = `No code yet, redirecting for auth`;
-                debugger
                 getAuthUrl(oauthConfig).then(u => window.location.href = u);
             }
         </script>

@@ -163,7 +163,8 @@ pub fn consent_page_html(request: &OAuthRequest, route: &str, grant: &PreGrant) 
         };
     }
 
-    let state = request.query().unwrap().unique_value("state").unwrap_or(Cow::Borrowed("")).to_string();
+    let query = request.query().unwrap();
+    let state = query.unique_value("state").unwrap_or(Cow::Borrowed("")).to_string();
 
     format!(template!(), 
         grant.client_id,
