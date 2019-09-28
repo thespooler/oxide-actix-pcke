@@ -47,6 +47,7 @@
                 // Create and store a new PKCE code_verifier (the plaintext random secret)
                 const code_verifier = generateRandomString();
                 localStorage.setItem("pkce_code_verifier", code_verifier);
+                console.log(`Verifier: ${code_verifier}`);
 
                 // Hash and base64-urlencode the secret to use as the challenge
                 const code_challenge = await pkceChallengeFromVerifier(code_verifier);
@@ -79,14 +80,12 @@
                 }
 
                 if (q.code) {
-                    q.code = decodeURIComponent(q.code);
 
                     if (localStorage.getItem("pkce_state") != q.state) {
                         document.getElementById("status").innerHTML = `Got code ${q.code}, but (pkce_)state is not what was expected. Expected ${localStorage.getItem("pkce_state")}, got ${q.state}`;
                         debugger
                     } else {
                         localStorage.removeItem("pkce_state");
-                        localStorage.removeItem("pkce_code_verifier");
                         document.getElementById("status").innerHTML = `Got code ${q.code} and pkce matches`;
                         return q.code;
                     }
@@ -116,8 +115,10 @@
                 })
                     .then(r => r.json())
                     .then((t) => {
+                        debugger
                         // Got valid access token
                         document.getElementById("status").innerHTML = `Got access token ${t.access_token}`;
+                        localStorage.removeItem("pkce_code_verifier");
                     });
             } else {
                 document.getElementById("status").innerHTML = `No code yet, redirecting for auth`;

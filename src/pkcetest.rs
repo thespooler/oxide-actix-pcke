@@ -2,11 +2,12 @@ use actix::{Actor,Context,Handler};
 use oxide_auth_actix::{OAuthMessage,OAuthOperation,OAuthRequest,OAuthResponse,WebError};
 use oxide_auth::{ 
     code_grant::extensions::Pkce,
-    endpoint::{Endpoint,OwnerConsent,OwnerSolicitor},
+    endpoint::{Endpoint,OwnerConsent,OwnerSolicitor,QueryParameter},
     frontends::simple::endpoint::{Error,ErrorInto,FnSolicitor,Generic,Vacant},
     frontends::simple::extensions::{AddonList,Extended},
     primitives::prelude::{AuthMap, Client, ClientMap, PreGrant, RandomGenerator, Scope, TokenMap},
 };
+use std::borrow::Cow;
 
 pub(crate) enum Extras {
     AuthGet,
@@ -87,12 +88,12 @@ where
 
         match ex {
             Extras::AuthGet => {
-                let solicitor = FnSolicitor(move |_: &mut OAuthRequest, pre_grant: &PreGrant| {
+                let solicitor = FnSolicitor(move |req: &mut OAuthRequest, pre_grant: &PreGrant| {
                     // This will display a page to the user asking for his permission to proceed. The submitted form
                     // will then trigger the other authorization handler which actually completes the flow.
                     OwnerConsent::InProgress(
                         OAuthResponse::ok().content_type("text/html").unwrap().body(
-                            &consent_page_html("/oauth/authorize".into(), pre_grant),
+                            &consent_page_html(req, "/oauth/authorize".into(), pre_grant),
                         ),
                     )
                 });
@@ -150,22 +151,25 @@ impl<'l> OwnerSolicitor<OAuthRequest> for &'l Deny {
     }
 }
 
-pub fn consent_page_html(route: &str, grant: &PreGrant) -> String {
+pub fn consent_page_html(request: &OAuthRequest, route: &str, grant: &PreGrant) -> String {
     macro_rules! template {
         () => {
 "<html>'{0:}' (at {1:}) is requesting permission for '{2:}'
 <form method=\"post\">
-    <input type=\"submit\" value=\"Accept\" formaction=\"{4:}?response_type=code&client_id={3:}&allow=true\">
+    <input type=\"submit\" value=\"Accept\" formaction=\"{4:}?response_type=code&client_id={3:}&state={5:}&allow=true\">
     <input type=\"submit\" value=\"Deny\" formaction=\"{4:}?response_type=code&client_id={3:}&deny=true\">
 </form>
 </html>"
         };
     }
-    
+
+    let state = request.query().unwrap().unique_value("state").unwrap_or(Cow::Borrowed("")).to_string();
+
     format!(template!(), 
         grant.client_id,
         grant.redirect_uri,
         grant.scope,
         grant.client_id,
-        &route)
+        &route,
+        state)
 }
