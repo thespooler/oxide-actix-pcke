@@ -116,7 +116,7 @@
                     .then((t) => {
                         if (t.error)
                         {
-                            document.getElementById("status").innerHTML = `Got error ${t.error}`;
+                            document.getElementById("status").innerHTML = `Got error while fetching access token: ${t.error}`;
                         }
                         if (t.access_token)
                         {         
