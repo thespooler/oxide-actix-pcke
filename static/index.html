@@ -1,0 +1,120 @@
+<html>
+    <head>
+    </head>
+    <body>
+        <h1 id="status">No Code yet</h1>
+        <script>
+            const oauthConfig = {
+                authorization_endpoint: 'http://localhost:8081/oauth/authorize',
+                client_id: 'LocalClient',
+                redirect_uri: 'http://localhost:8081/',
+                requested_scopes: 'default-scope',
+                token_endpoint: 'http://localhost:8081/oauth/token'
+            };
+
+            function generateRandomString() {
+                const array = new Uint32Array(28);
+                window.crypto.getRandomValues(array);
+                return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
+            }
+
+            function sha256(plain) {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(plain);
+                return window.crypto.subtle.digest('SHA-256', data);
+            }
+
+            function base64urlencode(str) {
+                return btoa(String.fromCharCode(...new Uint8Array(str)))
+                    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            }
+
+            async function pkceChallengeFromVerifier(v) {
+                const hashed = await sha256(v);
+                return base64urlencode(hashed);
+            }
+
+            async function getAuthUrl(config) {
+                // Create and store a random "state" value
+                const state = generateRandomString();
+                localStorage.setItem("pkce_state", state);
+
+                // Create and store a new PKCE code_verifier (the plaintext random secret)
+                const code_verifier = generateRandomString();
+                localStorage.setItem("pkce_code_verifier", code_verifier);
+
+                // Hash and base64-urlencode the secret to use as the challenge
+                const code_challenge = await pkceChallengeFromVerifier(code_verifier);
+
+                // Build the authorization URL
+                return config.authorization_endpoint
+                    + "?response_type=code"
+                    + "&client_id=" + encodeURIComponent(config.client_id)
+                    + "&state=" + encodeURIComponent(state)
+                    + "&scope=" + encodeURIComponent(config.requested_scopes)
+                    + "&redirect_uri=" + encodeURIComponent(config.redirect_uri)
+                    + "&code_challenge=" + encodeURIComponent(code_challenge)
+                    + "&code_challenge_method=S256";
+            }
+
+            function parseQueryString(string) {
+                if (string == "") { return {}; }
+                const segments = string.split("&").map(s => s.split("="));
+                const queryString = {};
+                segments.forEach(s => queryString[s[0]] = s[1]);
+                return queryString;
+            }
+
+            function getCode() {
+                const q = parseQueryString(window.location.search.substring(1));
+
+                if (q.error) {
+                    document.getElementById("status").innerHTML = `Got error ${q.error}`;
+                }
+
+                if (q.code) {
+
+                    if (localStorage.getItem("pkce_state") != q.state) {
+                        document.getElementById("status").innerHTML = `Got code ${q.code}, but pkce_state is not what was expected`;
+                    } else {
+                        localStorage.removeItem("pkce_state");
+                        localStorage.removeItem("pkce_code_verifier");
+                        document.getElementById("status").innerHTML = `Got code ${q.code} and pkce matches`;
+                        return q.code;
+                    }
+
+                    localStorage.removeItem("pkce_state");
+                    localStorage.removeItem("pkce_code_verifier");
+                }
+
+                return undefined;
+            }
+
+            const code = getCode();
+
+            if (code) {
+                const params = {
+                    grant_type: "authorization_code",
+                    code,
+                    client_id: oauthConfig.client_id,
+                    redirect_uri: oauthConfig.redirect_uri,
+                    code_verifier: localStorage.getItem("pkce_code_verifier") || ''
+                };
+
+                fetch(oauthConfig.token_endpoint, {
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                    method: "POST",
+                    body: Object.keys(params).map(key => key + '=' + params[key]).join('&')
+                })
+                    .then(r => r.json())
+                    .then((t) => {
+                        // Got valid access token
+                        document.getElementById("status").innerHTML = `Got access token ${t.access_token}`;
+                    });
+            } else {
+                document.getElementById("status").innerHTML = `No code yet, redirecting for auth`;
+                getAuthUrl(oauthConfig).then(u => window.location.href = u);
+            }
+        </script>
+    </body>
+</html>

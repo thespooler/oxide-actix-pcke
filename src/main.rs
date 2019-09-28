@@ -21,6 +21,7 @@ fn create_session() -> Result<OAuthResponse, WebError> {
 
 fn main() {
     std::env::set_var("RUST_LOG", "actix_shopper=info,actix_server=info,actix_web=info");
+    env_logger::init();
 
     let sys = actix::System::new("HttpServerClient");
 
@@ -34,23 +35,12 @@ fn main() {
                     web::resource("/authorize")
                         .route(web::get().to_async(
                             |(req, state): (OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                                // GET requests should not mutate server state and are extremely
-                                // vulnerable accidental repetition as well as Cross-Site Request
-                                // Forgery (CSRF).
-                                state
-                                    .send(Authorize(req).wrap(Extras::AuthGet))
-                                    .map_err(WebError::from)
+                                state.send(Authorize(req).wrap(Extras::AuthGet)).map_err(WebError::from)
                             },
                         ))
                         .route(web::post().to_async(
                             |(r, req, state): (HttpRequest, OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                                // Some authentication should be performed here in production cases
-                                state
-                                    .send(
-                                        Authorize(req)
-                                            .wrap(Extras::AuthPost(r.query_string().to_owned())),
-                                    )
-                                    .map_err(WebError::from)
+                                state.send(Authorize(req).wrap(Extras::AuthPost(r.query_string().to_owned()))).map_err(WebError::from)
                             },
                         )),
                 )
@@ -83,7 +73,7 @@ fn main() {
                     })
                 )
             )
-            .service(actix_files::Files::new("/", "../../actix-shopper/web/dist").index_file("index.html"))
+            .service(actix_files::Files::new("/", "./static").index_file("index.html"))
     })
     .bind("0.0.0.0:8081")
     .expect("Failed to bind to socket")
