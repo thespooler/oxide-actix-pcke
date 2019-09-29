@@ -18,9 +18,12 @@
             };
 
             function generateRandomString() {
-                const array = new Uint32Array(28);
+                // const array = new Uint32Array(28);
+                // window.crypto.getRandomValues(array);
+                // return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
+                const array = new Uint8Array(32);
                 window.crypto.getRandomValues(array);
-                return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
+                return array;
             }
 
             function sha256(plain) {
@@ -41,11 +44,15 @@
 
             async function getAuthUrl(config) {
                 // Create and store a random "state" value
-                const state = generateRandomString();
+                debugger
+                let state = generateRandomString();
+                state = base64urlencode(state);
                 localStorage.setItem("pkce_state", state);
 
                 // Create and store a new PKCE code_verifier (the plaintext random secret)
-                const code_verifier = generateRandomString();
+                // const spec_code_verifier_source = generateRandomString();
+                const spec_code_verifier_source = new Uint8Array([116, 24, 223, 180, 151, 153, 224, 37, 79, 250, 96, 125, 216, 173, 187, 186, 22, 212, 37, 77, 105, 214, 191, 240, 91, 88, 5, 88, 83, 132, 141, 121]);
+                code_verifier = base64urlencode(spec_code_verifier_source);
                 localStorage.setItem("pkce_code_verifier", code_verifier);
                 console.log(`Verifier: ${code_verifier}`);
 
