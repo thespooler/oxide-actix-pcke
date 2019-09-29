@@ -42,7 +42,7 @@ fn main() {
                             |(r, req, state): (HttpRequest, OAuthRequest, web::Data<Addr<PkceSetup>>)| {
                                 state.send(Authorize(req).wrap(Extras::AuthPost(r.query_string().to_owned()))).map_err(WebError::from)
                             },
-                        )),
+                        ))
                 )
                 .route(
                     "/token",

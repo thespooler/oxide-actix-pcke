@@ -156,7 +156,7 @@ pub fn consent_page_html(request: &OAuthRequest, route: &str, grant: &PreGrant) 
         () => {
 "<html>'{0:}' (at {1:}) is requesting permission for '{2:}'
 <form method=\"post\">
-    <input type=\"submit\" value=\"Accept\" formaction=\"{4:}?response_type=code&client_id={3:}&state={5:}&allow=true\">
+    <input type=\"submit\" value=\"Accept\" formaction=\"{4:}?response_type=code&client_id={3:}&state={5:}&code_challenge={6:}&code_challenge_method={7:}&allow=true\">
     <input type=\"submit\" value=\"Deny\" formaction=\"{4:}?response_type=code&client_id={3:}&deny=true\">
 </form>
 </html>"
@@ -165,6 +165,8 @@ pub fn consent_page_html(request: &OAuthRequest, route: &str, grant: &PreGrant) 
 
     let query = request.query().unwrap();
     let state = query.unique_value("state").unwrap_or(Cow::Borrowed("")).to_string();
+    let code_challenge = query.unique_value("code_challenge").unwrap_or(Cow::Borrowed("")).to_string();
+    let code_challenge_method = query.unique_value("code_challenge_method").unwrap_or(Cow::Borrowed("")).to_string();
 
     format!(template!(), 
         grant.client_id,
@@ -172,5 +174,7 @@ pub fn consent_page_html(request: &OAuthRequest, route: &str, grant: &PreGrant) 
         grant.scope,
         grant.client_id,
         &route,
-        state)
+        state,
+        code_challenge,
+        code_challenge_method)
 }
