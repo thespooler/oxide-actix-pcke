@@ -2,7 +2,6 @@ mod pkcetest;
 
 use actix::{Actor,Addr};
 use actix_web::{App, HttpRequest, HttpServer, web};
-use futures::future::Future;
 use log::info;
 use oxide_auth_actix::{Authorize,OAuthOperation,OAuthRequest,OAuthResource,OAuthResponse,Refresh,Resource,Token,WebError};
 use pkcetest::{PkceSetup,Extras};
@@ -33,51 +32,45 @@ fn main() {
             .service(web::scope("/oauth/")
                 .service(
                     web::resource("/authorize")
-                        .route(web::get().to_async(
+                        .route(web::get().to(
                             |(req, state): (OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                                state.send(Authorize(req).wrap(Extras::AuthGet)).map_err(WebError::from)
+                                state.send(Authorize(req).wrap(Extras::AuthGet))
                             },
                         ))
-                        .route(web::post().to_async(
+                        .route(web::post().to(
                             |(r, req, state): (HttpRequest, OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                                state.send(Authorize(req).wrap(Extras::AuthPost(r.query_string().to_owned()))).map_err(WebError::from)
+                                state.send(Authorize(req).wrap(Extras::AuthPost(r.query_string().to_owned())))
                             },
                         ))
                 )
                 .route(
                     "/token",
-                    web::post().to_async(|(req, state): (OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                        state
-                            .send(Token(req).wrap(Extras::Nothing))
-                            .map_err(WebError::from)
+                    web::post().to(|(req, state): (OAuthRequest, web::Data<Addr<PkceSetup>>)| {
+                        state.send(Token(req).wrap(Extras::Nothing))
                     }),
                 )
                 .route(
                     "/refresh",
-                    web::post().to_async(|(req, state): (OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                        state
-                            .send(Refresh(req).wrap(Extras::Nothing))
-                            .map_err(WebError::from)
+                    web::post().to(|(req, state): (OAuthRequest, web::Data<Addr<PkceSetup>>)| {
+                        state.send(Refresh(req).wrap(Extras::Nothing))
                     }),
                 )
-                .route("/endpoint",
-                    web::get().to_async(|(req, state): (OAuthResource, web::Data<Addr<PkceSetup>>)| {
-                        state
-                            .send(Resource(req.into_request()).wrap(Extras::Nothing))
-                            .map_err(WebError::from)
-                            .and_then(|res| match res {
-                                Ok(_grant) => create_session(), //actix_files::Files::new("/", "./web/dist").index_file("index.html"),
-                                Err(Ok(response)) => Ok(response.body(DENY_TEXT)),
-                                Err(Err(e)) => Err(e.into()),
-                            })
-                    })
-                )
             )
+            .route("/resource", web::get().to(resource))
             .service(actix_files::Files::new("/", "./static").index_file("index.html"))
     })
     .bind("0.0.0.0:8081")
     .expect("Failed to bind to socket")
-    .start();
+    .run();
 
     sys.run().expect("Failed to start actors loop");
+}
+
+async fn resource(req: OAuthResource, state: web::Data<Addr<PkceSetup>>) -> Result<OAuthResponse, WebError> {
+    let resource = state.send(Resource(req.into_request()).wrap(Extras::Nothing)).await?;
+    match resource {
+        Ok(_grant) => create_session(), //actix_files::Files::new("/", "./web/dist").index_file("index.html"),
+        Err(Ok(response)) => Ok(response.body(DENY_TEXT)),
+        Err(Err(e)) => Err(e.into()),
+    }
 }

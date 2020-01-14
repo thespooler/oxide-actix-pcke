@@ -1,11 +1,12 @@
+use core::marker::PhantomData;
 use actix::{Actor,Context,Handler};
 use oxide_auth_actix::{OAuthMessage,OAuthOperation,OAuthRequest,OAuthResponse,WebError};
 use oxide_auth::{ 
     code_grant::extensions::Pkce,
-    endpoint::{Endpoint,OwnerConsent,OwnerSolicitor,QueryParameter},
-    frontends::simple::endpoint::{Error,ErrorInto,FnSolicitor,Generic,Vacant},
+    endpoint::{Authorizer,Endpoint,Extension,OAuthError,OwnerConsent,OwnerSolicitor,QueryParameter,Scopes,Template,WebRequest},
+    frontends::simple::endpoint::{Error,FnSolicitor,Generic,Vacant},
     frontends::simple::extensions::{AddonList,Extended},
-    primitives::prelude::{AuthMap, Client, ClientMap, PreGrant, RandomGenerator, Scope, TokenMap},
+    primitives::prelude::*,
 };
 use std::borrow::Cow;
 
@@ -177,4 +178,58 @@ pub fn consent_page_html(request: &OAuthRequest, route: &str, grant: &PreGrant) 
         state,
         code_challenge,
         code_challenge_method)
+}
+
+pub(crate) struct ErrorInto<E, Error>(E, PhantomData<Error>);
+
+impl<E, Error> ErrorInto<E, Error> {
+    /// Create a new ErrorInto wrapping the supplied endpoint.
+    pub fn new(endpoint: E) -> Self {
+        ErrorInto(endpoint, PhantomData)
+    }
+}
+
+impl<E, Error, W> Endpoint<W> for ErrorInto<E, Error>
+where
+    E: Endpoint<W>,
+    E::Error: Into<Error>,
+    W: WebRequest,
+{
+    type Error = Error;
+
+    fn registrar(&self) -> Option<&dyn Registrar> {
+        self.0.registrar()
+    }
+
+    fn authorizer_mut(&mut self) -> Option<&mut dyn Authorizer> {
+        self.0.authorizer_mut()
+    }
+
+    fn issuer_mut(&mut self) -> Option<&mut dyn Issuer> {
+        self.0.issuer_mut()
+    }
+
+    fn owner_solicitor(&mut self) -> Option<&mut dyn OwnerSolicitor<W>> {
+        self.0.owner_solicitor()
+    }
+
+    fn scopes(&mut self) -> Option<&mut dyn Scopes<W>> {
+        self.0.scopes()
+    }
+
+    fn response(&mut self, request: &mut W, kind: Template) -> Result<W::Response, Self::Error> {
+        self.0.response(request, kind).map_err(Into::into)
+    }
+
+    fn error(&mut self, err: OAuthError) -> Self::Error {
+        self.0.error(err).into()
+    }
+
+    fn web_error(&mut self, err: W::Error) -> Self::Error {
+        self.0.web_error(err).into()
+    }
+
+    fn extension(&mut self) -> Option<&mut dyn Extension> {
+        self.0.extension()
+    }
 }
