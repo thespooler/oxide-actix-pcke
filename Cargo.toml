@@ -7,13 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix = "0.9"
-# actix-cors = "0.1"
-actix-files = "0.2.1"
-# actix-identity = "0.1"
-actix-web = "2.0"
+actix = { version = "0.10", default-features = false }
+actix-files = "0.5.0"
+actix-web = { version = "3.0", default-features = false }
 env_logger = "0.6"
-futures = "0.3"
+futures = { version = "0.3.16", default-features = false }
 log = "0.4"
-oxide-auth = { version = "0.5.0-preview.0", path = "./../oxide-auth/oxide-auth" }
-oxide-auth-actix = { version = "0.0.1", path = "./../oxide-auth/oxide-auth-actix" }
+oxide-auth = { version = "0.5.0", path = "./../oxide-auth/oxide-auth" }
+oxide-auth-actix = { version = "0.1.0", path = "./../oxide-auth/oxide-auth-actix" }
+url = "2"

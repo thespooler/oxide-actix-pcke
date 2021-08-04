@@ -18,6 +18,22 @@ fn create_session() -> Result<OAuthResponse, WebError> {
     Ok(OAuthResponse::ok().content_type("text/plain")?.body("Logged in"))
 }
 
+async fn get_authorize(req: OAuthRequest, state: web::Data<Addr<PkceSetup>>) -> Result<OAuthResponse, WebError> {
+    state.send(Authorize(req).wrap(Extras::AuthGet)).await?
+}
+
+async fn post_authorize(httpreq: HttpRequest,req: OAuthRequest, state: web::Data<Addr<PkceSetup>>) -> Result<OAuthResponse, WebError> {
+    state.send(Authorize(req).wrap(Extras::AuthPost(httpreq.query_string().to_owned()))).await?
+}
+
+async fn post_token(req: OAuthRequest, state: web::Data<Addr<PkceSetup>>) -> Result<OAuthResponse, WebError> {
+    state.send(Token(req).wrap(Extras::Nothing)).await?
+}
+
+async fn post_refresh(req: OAuthRequest, state: web::Data<Addr<PkceSetup>>) -> Result<OAuthResponse, WebError> {
+    state.send(Refresh(req).wrap(Extras::Nothing)).await?
+}
+
 fn main() {
     std::env::set_var("RUST_LOG", "actix_shopper=info,actix_server=info,actix_web=info");
     env_logger::init();
@@ -32,29 +48,11 @@ fn main() {
             .service(web::scope("/oauth/")
                 .service(
                     web::resource("/authorize")
-                        .route(web::get().to(
-                            |(req, state): (OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                                state.send(Authorize(req).wrap(Extras::AuthGet))
-                            },
-                        ))
-                        .route(web::post().to(
-                            |(r, req, state): (HttpRequest, OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                                state.send(Authorize(req).wrap(Extras::AuthPost(r.query_string().to_owned())))
-                            },
-                        ))
+                        .route(web::get().to(get_authorize))
+                        .route(web::post().to(post_authorize))
                 )
-                .route(
-                    "/token",
-                    web::post().to(|(req, state): (OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                        state.send(Token(req).wrap(Extras::Nothing))
-                    }),
-                )
-                .route(
-                    "/refresh",
-                    web::post().to(|(req, state): (OAuthRequest, web::Data<Addr<PkceSetup>>)| {
-                        state.send(Refresh(req).wrap(Extras::Nothing))
-                    }),
-                )
+                .route("/token",web::post().to(post_token))
+                .route("/refresh", web::post().to(post_refresh))
             )
             .route("/resource", web::get().to(resource))
             .service(actix_files::Files::new("/", "./static").index_file("index.html"))
