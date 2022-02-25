@@ -1,14 +1,22 @@
+use actix::{Actor, Context, Handler};
 use core::marker::PhantomData;
-use actix::{Actor,Context,Handler};
 use oxide_auth::{
     code_grant::extensions::Pkce,
-    endpoint::{Authorizer,Endpoint,Extension,OAuthError,OwnerConsent,OwnerSolicitor,QueryParameter,Scopes,Solicitation,Template,WebRequest},
-    frontends::simple::endpoint::{Error,FnSolicitor,Generic,Vacant},
-    frontends::simple::extensions::{AddonList,Extended},
+    endpoint::{
+        Authorizer, Endpoint, Extension, OAuthError, OwnerConsent, OwnerSolicitor, Scopes,
+        Solicitation, Template, WebRequest,
+    },
+    frontends::simple::{
+        endpoint::{Error, FnSolicitor, Generic, Vacant},
+        extensions::{AddonList, Extended},
+    },
     primitives::prelude::*,
 };
-use oxide_auth_actix::{OAuthMessage,OAuthOperation,OAuthRequest,OAuthResponse,WebError};
+use oxide_auth_actix::{OAuthMessage, OAuthOperation, OAuthRequest, OAuthResponse, WebError};
+use sailfish::TemplateOnce;
 use std::borrow::Cow;
+
+use crate::pages::AuthPage;
 
 pub(crate) enum Extras {
     AuthGet,
@@ -20,7 +28,7 @@ pub struct PkceSetup {
     registrar: ClientMap,
     authorizer: AuthMap<RandomGenerator>,
     issuer: TokenMap<RandomGenerator>,
-    scopes: Vec<Scope>
+    scopes: Vec<Scope>,
 }
 
 impl Actor for PkceSetup {
@@ -30,9 +38,11 @@ impl Actor for PkceSetup {
 impl PkceSetup {
     pub fn new() -> PkceSetup {
         let scope: Scope = "default-scope".parse().unwrap();
-        let client = Client::public("LocalClient",
+        let client = Client::public(
+            "LocalClient",
             "http://localhost:8081/".parse::<url::Url>().unwrap().into(),
-            scope.clone());
+            scope.clone(),
+        );
 
         let mut registrar = ClientMap::new();
         registrar.register_client(client);
@@ -44,12 +54,16 @@ impl PkceSetup {
             registrar: registrar,
             authorizer: authorizer,
             issuer: issuer,
-            scopes: vec![scope]
+            scopes: vec![scope],
         }
     }
-    
-    pub fn allowing_endpoint<'a, S>(&'a mut self, solicitor: S) -> impl Endpoint<OAuthRequest, Error = Error<OAuthRequest>> + 'a
-    where S: OwnerSolicitor<OAuthRequest> + 'static
+
+    pub fn allowing_endpoint<'a, S>(
+        &'a mut self,
+        solicitor: S,
+    ) -> impl Endpoint<OAuthRequest, Error = Error<OAuthRequest>> + 'a
+    where
+        S: OwnerSolicitor<OAuthRequest> + 'static,
     {
         let pkce_extension = Pkce::required();
 
@@ -89,15 +103,42 @@ where
 
         match ex {
             Extras::AuthGet => {
-                let solicitor = FnSolicitor(move |req: &mut OAuthRequest, solicitation: Solicitation| {
-                    // This will display a page to the user asking for his permission to proceed. The submitted form
-                    // will then trigger the other authorization handler which actually completes the flow.
-                    OwnerConsent::InProgress(
-                        OAuthResponse::ok().content_type("text/html").unwrap().body(
-                            &consent_page_html(req, "/oauth/authorize".into(), solicitation),
-                        ),
-                    )
-                });
+                let solicitor =
+                    FnSolicitor(move |req: &mut OAuthRequest, solicitation: Solicitation| {
+                        let query = req.query().unwrap();
+                        let state = query
+                            .unique_value("state")
+                            .unwrap_or(Cow::Borrowed(""))
+                            .to_string();
+                        let code_challenge = query
+                            .unique_value("code_challenge")
+                            .unwrap_or(Cow::Borrowed(""))
+                            .to_string();
+                        let code_challenge_method = query
+                            .unique_value("code_challenge_method")
+                            .unwrap_or(Cow::Borrowed(""))
+                            .to_string();
+                        let pre_grant = solicitation.pre_grant();
+
+                        let auth_page = AuthPage {
+                            client_id: &pre_grant.client_id,
+                            redirect_uri: &pre_grant.redirect_uri,
+                            scope: &pre_grant.scope,
+                            route: "/oauth/authorize",
+                            state,
+                            code_challenge,
+                            code_challenge_method,
+                        };
+
+                        // This will display a page to the user asking for his permission to proceed. The submitted form
+                        // will then trigger the other authorization handler which actually completes the flow.
+                        OwnerConsent::InProgress(
+                            OAuthResponse::ok()
+                                .content_type("text/html")
+                                .unwrap()
+                                .body(&auth_page.render_once().unwrap()),
+                        )
+                    });
 
                 op.run(self.with_solicitor(solicitor))
             }
@@ -121,64 +162,43 @@ struct Allow(String);
 struct Deny;
 
 impl OwnerSolicitor<OAuthRequest> for Allow {
-    fn check_consent(&mut self, _: &mut OAuthRequest, _: Solicitation)
-        -> OwnerConsent<OAuthResponse> 
-    {
+    fn check_consent(
+        &mut self,
+        _: &mut OAuthRequest,
+        _: Solicitation,
+    ) -> OwnerConsent<OAuthResponse> {
         OwnerConsent::Authorized(self.0.clone())
     }
 }
 
 impl OwnerSolicitor<OAuthRequest> for Deny {
-    fn check_consent(&mut self, _: &mut OAuthRequest, _: Solicitation)
-        -> OwnerConsent<OAuthResponse> 
-    {
+    fn check_consent(
+        &mut self,
+        _: &mut OAuthRequest,
+        _: Solicitation,
+    ) -> OwnerConsent<OAuthResponse> {
         OwnerConsent::Denied
     }
 }
 
 impl<'l> OwnerSolicitor<OAuthRequest> for &'l Allow {
-    fn check_consent(&mut self, _: &mut OAuthRequest, _: Solicitation)
-        -> OwnerConsent<OAuthResponse>
-    {
+    fn check_consent(
+        &mut self,
+        _: &mut OAuthRequest,
+        _: Solicitation,
+    ) -> OwnerConsent<OAuthResponse> {
         OwnerConsent::Authorized(self.0.clone())
     }
 }
 
 impl<'l> OwnerSolicitor<OAuthRequest> for &'l Deny {
-    fn check_consent(&mut self, _: &mut OAuthRequest, _: Solicitation)
-        -> OwnerConsent<OAuthResponse> 
-    {
+    fn check_consent(
+        &mut self,
+        _: &mut OAuthRequest,
+        _: Solicitation,
+    ) -> OwnerConsent<OAuthResponse> {
         OwnerConsent::Denied
     }
-}
-
-pub fn consent_page_html(request: &OAuthRequest, route: &str, solicitation: Solicitation) -> String {
-    macro_rules! template {
-        () => {
-"<html>'{0:}' (at {1:}) is requesting permission for '{2:}'
-<form method=\"post\">
-    <input type=\"submit\" value=\"Accept\" formaction=\"{4:}?response_type=code&client_id={3:}&state={5:}&code_challenge={6:}&code_challenge_method={7:}&allow=true\">
-    <input type=\"submit\" value=\"Deny\" formaction=\"{4:}?response_type=code&client_id={3:}&deny=true\">
-</form>
-</html>"
-        };
-    }
-
-    let query = request.query().unwrap();
-    let state = query.unique_value("state").unwrap_or(Cow::Borrowed("")).to_string();
-    let code_challenge = query.unique_value("code_challenge").unwrap_or(Cow::Borrowed("")).to_string();
-    let code_challenge_method = query.unique_value("code_challenge_method").unwrap_or(Cow::Borrowed("")).to_string();
-    let pre_grant = solicitation.pre_grant();
-
-    format!(template!(), 
-        pre_grant.client_id,
-        pre_grant.redirect_uri,
-        pre_grant.scope,
-        pre_grant.client_id,
-        &route,
-        state,
-        code_challenge,
-        code_challenge_method)
 }
 
 pub(crate) struct ErrorInto<E, Error>(E, PhantomData<Error>);

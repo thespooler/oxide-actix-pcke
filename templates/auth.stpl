@@ -1,0 +1,26 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="/css/normalize.css"> 
+    <link rel="stylesheet" href="/css/skeleton.css"> 
+    <style>
+.header {
+  margin-top: 18rem;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2 class="title">Authorization</h2>
+            <h3>
+                '<%= client_id %>' (at <%= redirect_uri.to_string() %>) is requesting permission for '<%= scope.to_string() %>'
+            </h3>
+            <form method="post">
+                <input class="button-primary" type="submit" value="Accept" formaction="<%= route %>?response_type=code&client_id=<%= client_id %>&state=<%= state %>&code_challenge=<%= code_challenge %>&code_challenge_method=<%= code_challenge_method %>&allow=true">
+                <input type="submit" value="Deny" formaction="<%= route %>?response_type=code&client_id=<%= client_id %>&deny=true">
+            </form>
+        </div>
+    </div>
+</body>
+</html>

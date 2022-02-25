@@ -1,0 +1,24 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="/css/normalize.css"> 
+    <link rel="stylesheet" href="/css/skeleton.css"> 
+    <style>
+.header {
+  margin-top: 18rem;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2 class="title">Authorization required</h2>
+            <h3>This page should be accessed via an oauth token from the client in the example.</h3>
+            <p>
+            Click <a href="/oauth/authorize?response_type=code&client_id=LocalClient">here</a> 
+            to begin the authorization process.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

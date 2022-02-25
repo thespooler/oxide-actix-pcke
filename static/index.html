@@ -1,17 +1,26 @@
+<!DOCTYPE html>
 <html>
     <head>
         <style>
-            body {
-                font-family: Verdana, Geneva, sans-serif;
-            }
+.header {
+  margin-top: 18rem;
+}
         </style>
+        <link rel="stylesheet" href="/css/normalize.css">
+        <link rel="stylesheet" href="/css/skeleton.css">
     </head>
     <body>
-        <section>
-            <ul id="status">
-                <li>No Code yet</li>
-            </ul>
-        </section>
+        <div class="container">
+            <div class="header">
+                <h2>OAuth with PKCE demonstration</h2>
+            </div>
+            <section>
+                <ul id="status">
+                    <li>No Code yet</li>
+                </ul>
+            </section>
+            <a href="/" class="button">Reset</a>
+        </div>
         <script>
             const oauthConfig = {
                 authorization_endpoint: 'http://localhost:8081/oauth/authorize',
@@ -23,9 +32,6 @@
             };
 
             function generateRandomString() {
-                // const array = new Uint32Array(28);
-                // window.crypto.getRandomValues(array);
-                // return Array.from(array, dec => ('0' + dec.toString(16)).substr(-2)).join('');
                 const array = new Uint8Array(32);
                 window.crypto.getRandomValues(array);
                 return array;
@@ -54,8 +60,8 @@
                 localStorage.setItem("pkce_state", state);
 
                 // Create and store a new PKCE code_verifier (the plaintext random secret)
-                // const spec_code_verifier_source = generateRandomString();
-                const spec_code_verifier_source = new Uint8Array([116, 24, 223, 180, 151, 153, 224, 37, 79, 250, 96, 125, 216, 173, 187, 186, 22, 212, 37, 77, 105, 214, 191, 240, 91, 88, 5, 88, 83, 132, 141, 121]);
+                const spec_code_verifier_source = generateRandomString();
+                //const spec_code_verifier_source = new Uint8Array([116, 24, 223, 180, 151, 153, 224, 37, 79, 250, 96, 125, 216, 173, 187, 186, 22, 212, 37, 77, 105, 214, 191, 240, 91, 88, 5, 88, 83, 132, 141, 121]);
                 code_verifier = base64urlencode(spec_code_verifier_source);
                 localStorage.setItem("pkce_code_verifier", code_verifier);
                 console.log(`Verifier: ${code_verifier}`);
@@ -74,29 +80,22 @@
                     + "&code_challenge_method=S256";
             }
 
-            function parseQueryString(string) {
-                if (string == "") { return {}; }
-                const segments = string.split("&").map(s => s.split("="));
-                const queryString = {};
-                segments.forEach(s => queryString[s[0]] = s[1]);
-                return queryString;
-            }
+            const urlParams = new URLSearchParams(window.location.search);
+            const q = Object.fromEntries(urlParams);
 
             function getCode() {
-                const q = parseQueryString(window.location.search.substring(1));
 
                 if (q.error) {
+
                     q.error = decodeURIComponent(q.error);
-                    document.getElementById("status").insertAdjacentHTML("beforeend",`<li>Got error ${q.error}</li>`);
-                }
+                    document.getElementById("status").innerHTML = `<li>Got error <code>${ window.decodeURIComponent(q.error) }</code></li>`;
 
-                if (q.code) {
-
+                } else if (q.code) {
                     if (localStorage.getItem("pkce_state") != q.state) {
-                        document.getElementById("status").insertAdjacentHTML("beforeend",`<li>Got code ${q.code}, but (pkce_)state is not what was expected. Expected ${localStorage.getItem("pkce_state")}, got ${q.state}</li>`);
+                        document.getElementById("status").insertAdjacentHTML("beforeend",`<li>Got code <code>${ q.code }</code>, <strong>but (pkce_)state is not what was expected</strong>. Expected <code>${localStorage.getItem("pkce_state")}</code>, got <code>${q.state}</code></li>`);
                     } else {
                         localStorage.removeItem("pkce_state");
-                        document.getElementById("status").insertAdjacentHTML("beforeend",`<li>Got code ${q.code} and pkce matches</li>`);
+                        document.getElementById("status").insertAdjacentHTML("beforeend",`<li>Got code <code>${ window.decodeURIComponent(q.code) }</code> and pkce matches</li>`);
                         return q.code;
                     }
 
@@ -127,13 +126,13 @@
                 .then(r => r.json())
                 .then((t) => {
                     if (t.error) {
-                        document.getElementById("status").insertAdjacentHTML("beforeend", `<li>Got error while fetching access token: ${t.error}</li>`);
+                        document.getElementById("status").insertAdjacentHTML("beforeend", `<li>Got error while fetching access token <code>${t.error}</code></li>`);
                     }
 
                     if (t.access_token)
                     {         
                         // Got valid access token
-                        document.getElementById("status").insertAdjacentHTML("beforeend",`<li>Got access token ${t.access_token}</li>`);
+                        document.getElementById("status").insertAdjacentHTML("beforeend",`<li>Got access token <code>${t.access_token}</code></li>`);
                         localStorage.removeItem("pkce_code_verifier");
 
                         window.history.replaceState({}, window.document.title, "/");
@@ -143,11 +142,11 @@
                         })
                         .then(r => r.text())
                         .then(r => {
-                            document.getElementById("status").insertAdjacentHTML("beforeend", `<li>Got some resource ${r}</li>`);
+                            document.getElementById("status").insertAdjacentHTML("beforeend", `<li>Got some resource <code>${r}</code></li>`);
                         })
                     }
                 });
-            } else {
+            } else if (!q.error) {
                 document.getElementById("status").insertAdjacentHTML("beforeend",`<li>No code yet, redirecting for auth</li>`);
                 getAuthUrl(oauthConfig).then(u => window.location.href = u);
             }
