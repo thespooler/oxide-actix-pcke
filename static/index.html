@@ -121,7 +121,7 @@
                 fetch(oauthConfig.token_endpoint, {
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                     method: "POST",
-                    body: Object.keys(params).map(key => key + '=' + params[key]).join('&')
+                    body: new URLSearchParams(params)
                 })
                 .then(r => r.json())
                 .then((t) => {
